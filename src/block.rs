@@ -4,11 +4,9 @@ pub struct Block {
     code: String,
     hook: String,
     title: String,
-    pub enable: bool
+    pub enable: bool,
 }
 
 impl Block {
-    pub fn run(&self, stat: &mut Status) {
-
-    }
+    pub fn run(&self, stat: &mut Status) {}
 }
