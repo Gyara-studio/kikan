@@ -32,12 +32,7 @@ impl Runtime {
     }
 
     pub fn new_block(&mut self, hook_name: String, title: String, code: String, enable: bool) {
-        let block = Block {
-            hook: hook_name.clone(),
-            title,
-            code,
-            enable,
-        };
+        let block = Block::new(code, title, enable);
         if let Some(hook) = self.hooks_set.get_mut(&hook_name) {
             hook.insert_block(block);
         } else {
