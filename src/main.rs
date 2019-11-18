@@ -1,3 +1,6 @@
+
 fn main() {
-    println!("Hello, world!");
+    let mut a = Vec::new();
+    a.push(0);
+    println!("{:?}", a);
 }
