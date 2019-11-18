@@ -9,7 +9,7 @@ impl Hook {
     pub fn new(name: String) -> Hook {
         Hook {
             name,
-            blocks: Vec::new()
+            blocks: Vec::new(),
         }
     }
 

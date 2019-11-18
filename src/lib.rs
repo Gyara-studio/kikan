@@ -2,8 +2,8 @@ mod block;
 mod hook;
 mod library;
 
-use hook::Hook;
 use block::Block;
+use hook::Hook;
 
 pub type Status = std::collections::HashMap<String, String>;
 

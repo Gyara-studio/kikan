@@ -8,6 +8,5 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn run(&self, _stat: &mut Status) {
-    }
+    pub fn run(&self, _stat: &mut Status) {}
 }
