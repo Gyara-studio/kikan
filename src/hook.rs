@@ -1,4 +1,4 @@
-use crate::{block::Block, Status};
+use crate::{block::Block, library::Library, Status};
 
 pub struct Hook {
     name: String,
@@ -13,10 +13,10 @@ impl Hook {
         }
     }
 
-    pub fn trigger(&self, stat: &mut Status) {
+    pub fn trigger<T: Library>(&self, stat: &mut Status, lib: &mut T) {
         for block in self.blocks.iter() {
             if block.enable == true {
-                block.run(stat);
+                block.run(stat, lib);
             }
         }
     }

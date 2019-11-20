@@ -4,19 +4,22 @@ mod library;
 
 use block::Block;
 use hook::Hook;
+use library::Library;
 
 pub type Status = std::collections::HashMap<String, String>;
 
-pub struct Runtime {
+pub struct Runtime<T: Library> {
     stat: Status,
     hooks: std::collections::HashMap<String, Hook>,
+    library: Option<T>,
 }
 
-impl Runtime {
-    pub fn new() -> Runtime {
+impl<T: Library> Runtime<T> {
+    pub fn new() -> Runtime<T> {
         Runtime {
             stat: Status::new(),
             hooks: std::collections::HashMap::new(),
+            library: None,
         }
     }
 
@@ -26,8 +29,11 @@ impl Runtime {
     }
 
     pub fn trigger_hook(&mut self, hook_name: &String) {
+        if self.library.is_none() {
+            // TODO: not set up error
+        }
         if let Some(hook) = self.hooks.get(hook_name) {
-            hook.trigger(&mut self.stat);
+            hook.trigger(&mut self.stat, self.library.as_mut().unwrap());
         }
     }
 
@@ -40,5 +46,9 @@ impl Runtime {
             hook.insert_block(block);
             self.regist_hook(hook);
         }
+    }
+
+    pub fn link_library(&mut self, lib: T) {
+        self.library = Some(lib);
     }
 }

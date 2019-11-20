@@ -1,4 +1,4 @@
-use crate::Status;
+use crate::{library::Library, Status};
 
 pub struct Block {
     title: String,
@@ -25,5 +25,5 @@ impl Block {
         self.analyze_code(code);
     }
 
-    pub fn run(&self, _stat: &mut Status) {}
+    pub fn run<T: Library>(&self, _stat: &mut Status, _lib: &mut T) {}
 }
