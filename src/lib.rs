@@ -1,5 +1,5 @@
-mod error;
 mod block;
+mod error;
 mod hook;
 mod library;
 
