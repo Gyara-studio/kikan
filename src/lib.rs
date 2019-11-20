@@ -8,6 +8,7 @@ use library::Library;
 
 pub type Status = std::collections::HashMap<String, String>;
 
+#[derive(Default)]
 pub struct Runtime<T: Library> {
     stat: Status,
     hooks: std::collections::HashMap<String, Hook>,
@@ -28,7 +29,7 @@ impl<T: Library> Runtime<T> {
         self.hooks.insert(name, hook);
     }
 
-    pub fn trigger_hook(&mut self, hook_name: &String) {
+    pub fn trigger_hook(&mut self, hook_name: &str) {
         if self.library.is_none() {
             // TODO: not set up error
         }

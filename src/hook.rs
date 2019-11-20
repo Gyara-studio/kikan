@@ -15,7 +15,7 @@ impl Hook {
 
     pub fn trigger<T: Library>(&self, stat: &mut Status, lib: &mut T) {
         for block in self.blocks.iter() {
-            if block.enable == true {
+            if block.enable {
                 block.run(stat, lib);
             }
         }

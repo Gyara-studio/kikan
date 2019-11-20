@@ -1,15 +1,15 @@
 use crate::{library::Library, Status};
 
 pub struct Block {
-    title: String,
+    _title: String,
     pub enable: bool,
     ast_stack: Vec<String>,
 }
 
 impl Block {
-    pub fn new(code: String, title: String, enable: bool) -> Block {
+    pub fn new(code: String, _title: String, enable: bool) -> Block {
         let mut block = Block {
-            title,
+            _title,
             enable,
             ast_stack: Vec::new(),
         };
@@ -17,7 +17,7 @@ impl Block {
         block
     }
 
-    fn analyze_code(&mut self, code: String) {
+    fn analyze_code(&mut self, _code: String) {
         self.ast_stack.clear();
     }
 
