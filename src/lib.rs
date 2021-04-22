@@ -1,7 +1,11 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+mod layer;
+mod parse;
+mod command;
+
+pub fn set_up() -> anyhow::Result<()> {
+    Ok(())
+}
+
+pub fn update(_input: String) -> anyhow::Result<()> {
+    Ok(())
 }
