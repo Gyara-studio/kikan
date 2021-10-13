@@ -147,13 +147,6 @@ impl Kikan {
     }
 }
 
-pub trait UnitHandler: Sized {
-    // store id to handler
-    fn init(&mut self) -> KResult<()>;
-    fn get_position(&self) -> KResult<Position>;
-    fn plan_move(&mut self, next_move: Move) -> KResult<()>;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

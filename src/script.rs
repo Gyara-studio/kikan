@@ -1,14 +1,15 @@
-use crate::{error::KikanError, kikan::UnitHandler};
-use mlua::{Lua, UserData};
+use crate::{error::KikanError, handler::UnitHandler};
+use mlua::Lua;
 
 pub fn load_lua_script<T, H>(handler: H, lua_script: T) -> Result<(), KikanError>
 where
     T: AsRef<str>,
-    H: 'static + UnitHandler + UserData,
+    H: 'static + UnitHandler,
 {
     let lua = Lua::new();
     // library
     // init unit
+    let handler = handler.package();
     lua.globals().set("api", handler)?;
 
     // run script
@@ -50,7 +51,7 @@ mod tests {
         let kikan = Kikan::kikan_in_a_shell(start_pos);
         let len = 0;
         for _ in 0..len {
-        let handler = LocalHandle::new(Arc::clone(&kikan));
+            let handler = LocalHandle::new(Arc::clone(&kikan));
             load_lua_script(handler, "api:init();api:move('E');").unwrap();
         }
         for i in 0..len {
@@ -77,5 +78,16 @@ mod tests {
             kikan.lock().unwrap().apply_move();
         }
         assert_eq!(kikan.lock().unwrap().get_unit_position(0), Some(Position(2, 2)));
+    }
+
+    #[test]
+    fn double_init() {
+        let script = "
+            api:init();
+            api:init();
+        ";
+        let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
+        let handler = LocalHandle::new(Arc::clone(&kikan));
+        assert!(load_lua_script(handler, script).is_err());
     }
 }
