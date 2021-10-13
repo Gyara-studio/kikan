@@ -1,17 +1,14 @@
-use crate::{error::KikanError, handler::LocalHandle, kikan::Kikan};
-use mlua::Lua;
-use std::sync::{Arc, Mutex};
+use crate::{error::KikanError, kikan::UnitHandler};
+use mlua::{Lua, UserData};
 
-pub fn load_lua_script<T>(kikan: Arc<Mutex<Kikan>>, lua_script: T) -> Result<(), KikanError>
+pub fn load_lua_script<T, H>(handler: H, lua_script: T) -> Result<(), KikanError>
 where
     T: AsRef<str>,
+    H: 'static + UnitHandler + UserData,
 {
     let lua = Lua::new();
-
     // library
     // init unit
-    let kikan_temp = Arc::clone(&kikan);
-    let handler = LocalHandle::new(kikan_temp);
     lua.globals().set("api", handler)?;
 
     // run script
@@ -23,13 +20,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kikan::Position;
-    use std::sync::atomic::{AtomicI32, Ordering};
+    use crate::{
+        handler::LocalHandle,
+        kikan::{Kikan, Position},
+    };
+    use std::sync::{
+        atomic::{AtomicI32, Ordering},
+        Arc,
+    };
 
     #[test]
     fn hello_world() {
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
-        load_lua_script(Arc::clone(&kikan), "api:init()").unwrap();
+        let handler = LocalHandle::new(Arc::clone(&kikan));
+        load_lua_script(handler, "api:init()").unwrap();
         assert!(kikan.lock().unwrap().get_unit_position(0).is_some());
     }
 
@@ -46,12 +50,13 @@ mod tests {
         let kikan = Kikan::kikan_in_a_shell(start_pos);
         let len = 0;
         for _ in 0..len {
-            load_lua_script(Arc::clone(&kikan), "api:init()").unwrap();
+        let handler = LocalHandle::new(Arc::clone(&kikan));
+            load_lua_script(handler, "api:init();api:move('E');").unwrap();
         }
         for i in 0..len {
             assert_eq!(
                 kikan.lock().unwrap().get_unit_position(i),
-                Some(Position(i as i32 + 1, 0))
+                Some(Position(i as i32 + 1, 1))
             );
         }
     }
@@ -66,7 +71,8 @@ mod tests {
             api:plan_move('E');
         ";
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
-        load_lua_script(Arc::clone(&kikan), script).unwrap();
+        let handler = LocalHandle::new(Arc::clone(&kikan));
+        load_lua_script(handler, script).unwrap();
         for _ in 0..4 {
             kikan.lock().unwrap().apply_move();
         }

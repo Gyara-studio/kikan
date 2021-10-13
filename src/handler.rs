@@ -5,13 +5,13 @@ use crate::{
 use mlua::{Error as LuaError, UserData};
 use std::sync::{Arc, Mutex};
 
-pub(crate) struct LocalHandle {
+pub struct LocalHandle {
     unit_id: Option<UnitId>,
     kikan: Arc<Mutex<Kikan>>,
 }
 
 impl LocalHandle {
-    pub(crate) fn new(kikan: Arc<Mutex<Kikan>>) -> Self {
+    pub fn new(kikan: Arc<Mutex<Kikan>>) -> Self {
         Self { kikan, unit_id: None }
     }
 }
