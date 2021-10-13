@@ -1,3 +1,6 @@
+use mlua::UserData;
+
+use crate::error::{KResult, KikanError};
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
@@ -26,57 +29,79 @@ impl FromStr for Move {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Position(pub i32, pub i32);
+
+impl UserData for Position {
+    fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(fields: &mut F) {
+        fields.add_field_method_get("x", |_, this| Ok(this.0));
+        fields.add_field_method_get("y", |_, this| Ok(this.1));
+    }
+}
+
 /// pos:
 /// ↑
 /// x
 /// 0 y →
 #[derive(Debug, Clone)]
 pub(crate) struct Unit {
-    pub(crate) pos: (i32, i32),
+    pub(crate) pos: Position,
     pub(crate) move_queue: Vec<Move>,
 }
 
 pub type UnitId = u32;
 
 impl Unit {
-    pub fn new(pos: (i32, i32)) -> Self {
+    pub fn new(pos: Position) -> Self {
         Self {
             pos,
             move_queue: Vec::new(),
         }
     }
 
-    fn plan_move(&mut self) -> (i32, i32) {
+    fn plan_move(&mut self) -> Position {
         if !self.move_queue.is_empty() {
             let next_move = self.move_queue.remove(0);
-            let (x, y) = self.pos;
+            let Position(x, y) = self.pos;
             return match next_move {
-                Move::N => (x + 1, y),
-                Move::S => (x - 1, y),
-                Move::W => (x, y - 1),
-                Move::E => (x, y + 1),
+                Move::N => Position(x + 1, y),
+                Move::S => Position(x - 1, y),
+                Move::W => Position(x, y - 1),
+                Move::E => Position(x, y + 1),
             };
         }
         self.pos
     }
 
-    fn apply_move(&mut self, new_pos: (i32, i32)) {
+    fn apply_move(&mut self, new_pos: Position) {
         self.pos = new_pos;
     }
 }
 
-#[derive(Debug, Default)]
+pub struct PosConfig {
+    pub number: u32,
+}
+
 pub struct Kikan {
     count: UnitId,
     units: HashMap<UnitId, Unit>,
+    start_pos: Box<dyn FnMut() -> Position>,
 }
 
 impl Kikan {
-    pub fn kikan_in_a_shell() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::default()))
+    pub fn kikan_in_a_shell<F>(start_pos: F) -> Arc<Mutex<Self>>
+    where
+        F: FnMut() -> Position + 'static,
+    {
+        let kikan = Kikan {
+            count: 0,
+            units: HashMap::new(),
+            start_pos: Box::new(start_pos),
+        };
+        Arc::new(Mutex::new(kikan))
     }
 
-    pub fn add_unit(&mut self, pos: (i32, i32)) -> UnitId {
+    pub fn add_unit(&mut self, pos: Position) -> UnitId {
         let id = self.count;
         self.count += 1;
         let unit = Unit::new(pos);
@@ -84,20 +109,20 @@ impl Kikan {
         id
     }
 
-    pub fn plan_unit_move(&mut self, unit_id: UnitId, next_move: Move) -> Option<()> {
-        let unit = self.units.get_mut(&unit_id)?;
+    pub fn plan_unit_move(&mut self, unit_id: UnitId, next_move: Move) -> KResult<()> {
+        let unit = self.units.get_mut(&unit_id).ok_or(KikanError::GhostUnit)?;
         unit.move_queue.push(next_move);
-        Some(())
+        Ok(())
     }
 
-    pub fn get_unit_position(&mut self, unit_id: UnitId) -> Option<(i32, i32)> {
+    pub fn get_unit_position(&self, unit_id: UnitId) -> Option<Position> {
         let unit = self.units.get(&unit_id)?;
         Some(unit.pos)
     }
 
     pub fn apply_move(&mut self) {
         // pos to id
-        let mut new_pos: HashMap<(i32, i32), UnitId> = HashMap::new();
+        let mut new_pos: HashMap<Position, UnitId> = HashMap::new();
         // which unit can be updated
         let mut new_pos_avaliable: HashSet<UnitId> = HashSet::new();
 
@@ -116,47 +141,66 @@ impl Kikan {
             }
         }
     }
+
+    pub fn gen_start_pos(&mut self) -> Position {
+        (self.start_pos)()
+    }
+}
+
+pub trait UnitHandler: Sized {
+    // store id to handler
+    fn init(&mut self) -> KResult<()>;
+    fn get_position(&self) -> KResult<Position>;
+    fn plan_move(&mut self, next_move: Move) -> KResult<()>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn test_kikan() -> Kikan {
+        Kikan {
+            count: 0,
+            units: HashMap::new(),
+            start_pos: Box::new(|| Position(0, 0)),
+        }
+    }
+
     #[test]
     fn unit_move() {
-        let mut kikan = Kikan::default();
-        let u0 = kikan.add_unit((0, 0));
+        let mut kikan = test_kikan();
+        let u0 = kikan.add_unit(Position(0, 0));
 
         let m0 = Move::N;
         kikan.plan_unit_move(u0, m0).unwrap();
         kikan.apply_move();
         let pos0 = kikan.get_unit_position(u0).unwrap();
-        assert_eq!(pos0, (1, 0));
+        assert_eq!(pos0, Position(1, 0));
 
         let m1 = Move::E;
         kikan.plan_unit_move(u0, m1).unwrap();
         kikan.apply_move();
         let pos1 = kikan.get_unit_position(u0).unwrap();
-        assert_eq!(pos1, (1, 1));
+        assert_eq!(pos1, Position(1, 1));
 
         let m2 = Move::S;
         kikan.plan_unit_move(u0, m2).unwrap();
         kikan.apply_move();
         let pos2 = kikan.get_unit_position(u0).unwrap();
-        assert_eq!(pos2, (0, 1));
+        assert_eq!(pos2, Position(0, 1));
 
         let m3 = Move::W;
         kikan.plan_unit_move(u0, m3).unwrap();
         kikan.apply_move();
         let pos3 = kikan.get_unit_position(u0).unwrap();
-        assert_eq!(pos3, (0, 0));
+        assert_eq!(pos3, Position(0, 0));
     }
 
     #[test]
     fn unit_crash() {
-        let mut kikan = Kikan::default();
-        let u0 = kikan.add_unit((0, 0));
-        let u1 = kikan.add_unit((0, 1));
+        let mut kikan = test_kikan();
+        let u0 = kikan.add_unit(Position(0, 0));
+        let u1 = kikan.add_unit(Position(0, 1));
 
         let m0_0 = Move::E;
         let m0_1 = Move::S;
@@ -167,19 +211,19 @@ mod tests {
         let pos_u0 = kikan.get_unit_position(u0).unwrap();
         let pos_u1 = kikan.get_unit_position(u1).unwrap();
 
-        assert_eq!(pos_u0, (0, 0));
-        assert_eq!(pos_u1, (0, 1));
+        assert_eq!(pos_u0, Position(0, 0));
+        assert_eq!(pos_u1, Position(0, 1));
 
         kikan.apply_move();
         let pos_u0 = kikan.get_unit_position(u0).unwrap();
-        assert_eq!(pos_u0, (-1, 0));
+        assert_eq!(pos_u0, Position(-1, 0));
     }
 
     #[test]
     fn unit_crash_2() {
-        let mut kikan = Kikan::default();
-        let u0 = kikan.add_unit((1, 0));
-        let u1 = kikan.add_unit((0, 1));
+        let mut kikan = test_kikan();
+        let u0 = kikan.add_unit(Position(1, 0));
+        let u1 = kikan.add_unit(Position(0, 1));
 
         let m0_0 = Move::S;
         kikan.plan_unit_move(u0, m0_0).unwrap();
@@ -191,7 +235,7 @@ mod tests {
         let pos_u0 = kikan.get_unit_position(u0).unwrap();
         let pos_u1 = kikan.get_unit_position(u1).unwrap();
 
-        assert_eq!(pos_u0, (1, 0));
-        assert_eq!(pos_u1, (0, 1));
+        assert_eq!(pos_u0, Position(1, 0));
+        assert_eq!(pos_u1, Position(0, 1));
     }
 }

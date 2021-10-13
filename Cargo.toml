@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = "3.0.0-beta.4"
-mlua = { version = "0.6.5", default-features = false, features = ["macros", "lua54", "serialize", "vendored"] }
+mlua = { version = "0.6.6", default-features = false, features = ["macros", "lua54", "serialize", "vendored"] }
 thiserror = "1.0.30"
