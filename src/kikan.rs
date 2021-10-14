@@ -101,12 +101,15 @@ impl Kikan {
         Arc::new(Mutex::new(kikan))
     }
 
-    pub fn add_unit(&mut self, pos: Position) -> UnitId {
+    pub fn add_unit(&mut self, pos: Position) -> KResult<UnitId> {
+        if self.units.iter().any(|(_, v)| v.pos == pos) {
+            return Err(KikanError::AlreadyUnitHere);
+        }
         let id = self.count;
         self.count += 1;
         let unit = Unit::new(pos);
         self.units.insert(id, unit);
-        id
+        Ok(id)
     }
 
     pub fn plan_unit_move(&mut self, unit_id: UnitId, next_move: Move) -> KResult<()> {
@@ -162,7 +165,7 @@ mod tests {
     #[test]
     fn unit_move() {
         let mut kikan = test_kikan();
-        let u0 = kikan.add_unit(Position(0, 0));
+        let u0 = kikan.add_unit(Position(0, 0)).unwrap();
 
         let m0 = Move::N;
         kikan.plan_unit_move(u0, m0).unwrap();
@@ -192,8 +195,8 @@ mod tests {
     #[test]
     fn unit_crash() {
         let mut kikan = test_kikan();
-        let u0 = kikan.add_unit(Position(0, 0));
-        let u1 = kikan.add_unit(Position(0, 1));
+        let u0 = kikan.add_unit(Position(0, 0)).unwrap();
+        let u1 = kikan.add_unit(Position(0, 1)).unwrap();
 
         let m0_0 = Move::E;
         let m0_1 = Move::S;
@@ -215,8 +218,8 @@ mod tests {
     #[test]
     fn unit_crash_2() {
         let mut kikan = test_kikan();
-        let u0 = kikan.add_unit(Position(1, 0));
-        let u1 = kikan.add_unit(Position(0, 1));
+        let u0 = kikan.add_unit(Position(1, 0)).unwrap();
+        let u1 = kikan.add_unit(Position(0, 1)).unwrap();
 
         let m0_0 = Move::S;
         kikan.plan_unit_move(u0, m0_0).unwrap();

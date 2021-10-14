@@ -33,7 +33,7 @@ impl UnitHandler for LocalHandle {
         }
         let mut kikan = self.kikan.lock().unwrap();
         let pos = kikan.gen_start_pos();
-        let id = kikan.add_unit(pos);
+        let id = kikan.add_unit(pos)?;
         self.unit_id = Some(id);
         Ok(())
     }

@@ -11,6 +11,8 @@ pub enum KikanError {
     Uninited,
     #[error("Ghost unit")]
     GhostUnit,
+    #[error("There is already a unit")]
+    AlreadyUnitHere,
 }
 
 pub type KResult<T> = Result<T, KikanError>;
