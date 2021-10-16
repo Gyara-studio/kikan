@@ -88,40 +88,25 @@ where
     T: UnitHandler,
 {
     fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(fields: &mut F) {
-        fields.add_field_method_get("pos", |_, this| {
-            this.0.get_position().map_err(|e| LuaError::RuntimeError(e.to_string()))
-        })
+        fields.add_field_method_get("pos", |_, this| Ok(this.0.get_position()?))
     }
 
     fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
-        methods.add_method_mut("init", |_, this, _: ()| {
-            this.0.init().map_err(|e| LuaError::RuntimeError(e.to_string()))
-        });
+        methods.add_method_mut("init", |_, this, _: ()| Ok(this.0.init()?));
 
         methods.add_method_mut("plan_move", |_, this, next_move: String| {
             let next_move: Move = next_move
                 .parse()
                 .map_err(|_| LuaError::RuntimeError("Invalid arg".to_string()))?;
-            this.0
-                .plan_move(next_move)
-                .map_err(|e| LuaError::RuntimeError(e.to_string()))
+            Ok(this.0.plan_move(next_move)?)
         });
 
-        methods.add_method("get_position", |_, this, _: ()| {
-            this.0.get_position().map_err(|e| LuaError::RuntimeError(e.to_string()))
-        });
+        methods.add_method("get_position", |_, this, _: ()| Ok(this.0.get_position()?));
 
         methods.add_method("is_any_planned_move", |_, this, (): ()| {
-            this.0
-                .is_move_queue_empty()
-                .map(|re| !re)
-                .map_err(|e| LuaError::RuntimeError(e.to_string()))
+            Ok(this.0.is_move_queue_empty().map(|re| !re)?)
         });
 
-        methods.add_method("clear_planned_move", |_, this, (): ()| {
-            this.0
-                .clear_move_queue()
-                .map_err(|e| LuaError::RuntimeError(e.to_string()))
-        });
+        methods.add_method("clear_planned_move", |_, this, (): ()| Ok(this.0.clear_move_queue()?));
     }
 }

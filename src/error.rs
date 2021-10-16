@@ -15,4 +15,10 @@ pub enum KikanError {
     AlreadyUnitHere,
 }
 
+impl From<KikanError> for LuaError {
+    fn from(e: KikanError) -> Self {
+        Self::RuntimeError(e.to_string())
+    }
+}
+
 pub type KResult<T> = Result<T, KikanError>;
