@@ -148,6 +148,21 @@ impl Kikan {
     pub fn gen_start_pos(&mut self) -> Position {
         (self.start_pos)()
     }
+
+    pub fn is_unit_move_queue_empty(&self, unit_id: UnitId) -> KResult<bool> {
+        Ok(self
+            .units
+            .get(&unit_id)
+            .ok_or(KikanError::GhostUnit)?
+            .move_queue
+            .is_empty())
+    }
+
+    pub fn clear_unit_move_queue(&mut self, unit_id: UnitId) -> KResult<()> {
+        let unit = self.units.get_mut(&unit_id).ok_or(KikanError::GhostUnit)?;
+        unit.move_queue.clear();
+        Ok(())
+    }
 }
 
 #[cfg(test)]

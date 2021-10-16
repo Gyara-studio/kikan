@@ -10,6 +10,8 @@ pub trait UnitHandler: Sized {
     fn init(&mut self) -> KResult<()>;
     fn get_position(&self) -> KResult<Position>;
     fn plan_move(&mut self, next_move: Move) -> KResult<()>;
+    fn is_move_queue_empty(&self) -> KResult<bool>;
+    fn clear_move_queue(&self) -> KResult<()>;
     fn package(self) -> Handler<Self> {
         Handler(self)
     }
@@ -59,6 +61,24 @@ impl UnitHandler for LocalHandle {
         };
         self.kikan.lock().unwrap().plan_unit_move(id, next_move)
     }
+
+    fn is_move_queue_empty(&self) -> KResult<bool> {
+        let id = if let Some(id) = self.unit_id {
+            id
+        } else {
+            return Err(KikanError::Uninited);
+        };
+        self.kikan.lock().unwrap().is_unit_move_queue_empty(id)
+    }
+
+    fn clear_move_queue(&self) -> KResult<()> {
+        let id = if let Some(id) = self.unit_id {
+            id
+        } else {
+            return Err(KikanError::Uninited);
+        };
+        self.kikan.lock().unwrap().clear_unit_move_queue(id)
+    }
 }
 
 pub struct Handler<T>(pub T);
@@ -85,6 +105,23 @@ where
             this.0
                 .plan_move(next_move)
                 .map_err(|e| LuaError::RuntimeError(e.to_string()))
-        })
+        });
+
+        methods.add_method("get_position", |_, this, _: ()| {
+            this.0.get_position().map_err(|e| LuaError::RuntimeError(e.to_string()))
+        });
+
+        methods.add_method("is_any_planned_move", |_, this, (): ()| {
+            this.0
+                .is_move_queue_empty()
+                .map(|re| !re)
+                .map_err(|e| LuaError::RuntimeError(e.to_string()))
+        });
+
+        methods.add_method("clear_planned_move", |_, this, (): ()| {
+            this.0
+                .clear_move_queue()
+                .map_err(|e| LuaError::RuntimeError(e.to_string()))
+        });
     }
 }
