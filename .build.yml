@@ -1,0 +1,17 @@
+image: archlinux
+packages:
+  - rustup
+  - cargo-audit
+sources:
+  - "https://github.com/Gyara-studio/kikan.git"
+tasks:
+  - setup: |
+      rustup default stable
+  - audit: |
+      cd kikan
+      cargo audit
+  - build: |
+      cd kikan
+      cargo build --release
+artifacts:
+  - "kikan/target/release/kikan"
