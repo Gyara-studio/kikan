@@ -6,7 +6,7 @@ sources:
   - "https://github.com/Gyara-studio/kikan.git"
 tasks:
   - setup: |
-      rustup default stable
+      rustup default nightly
   - audit: |
       cd kikan
       cargo audit
