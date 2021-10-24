@@ -85,16 +85,23 @@ mod tests {
         let script = "
             api:init();
             api:plan_move('N');
+            api:wait_for_update();
             api:plan_move('N');
+            api:wait_for_update();
             api:plan_move('E');
+            api:wait_for_update();
             api:plan_move('E');
         ";
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
+        let _unit = {
+            let kikan = Arc::clone(&kikan);
+            std::thread::spawn(move || loop {
+                kikan.lock().unwrap().update().unwrap();
+                kikan.lock().unwrap().apply_move();
+            })
+        };
         load_lua_script(handler, script).unwrap();
-        for _ in 0..4 {
-            kikan.lock().unwrap().apply_move();
-        }
         assert_eq!(kikan.lock().unwrap().get_unit_position(0), Some(Position(2, 2)));
     }
 
@@ -120,7 +127,7 @@ mod tests {
                 x = x - 1;
             end
         ";
-        let kikan = Kikan::kikan_in_a_shell(|| Position(2, 0));
+        let kikan = Kikan::kikan_in_a_shell(|| Position(1, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
         load_lua_script(handler, script).unwrap();
         for _ in 0..2 {
@@ -130,21 +137,25 @@ mod tests {
     }
 
     #[test]
-    fn clear_queue() {
+    fn wait_for_update() {
         let script = "
             api:init();
             api:plan_move('s');
-            if api:is_any_planned_move() then
-                api:clear_planned_move()
-            end
-            api:plan_move('n');
+            api:wait_for_update();
+            api:plan_move('s');
         ";
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
+        let _unit = {
+            let kikan = Arc::clone(&kikan);
+            std::thread::spawn(move || loop {
+                kikan.lock().unwrap().update().unwrap();
+            })
+        };
         load_lua_script(handler, script).unwrap();
         for _ in 0..2 {
             kikan.lock().unwrap().apply_move();
         }
-        assert_eq!(kikan.lock().unwrap().get_unit_position(0), Some(Position(1, 0)));
+        assert_eq!(kikan.lock().unwrap().get_unit_position(0), Some(Position(-2, 0)));
     }
 }

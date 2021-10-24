@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = "3.0.0-beta.4"
+bus = "2.2.3"
+clap = "3.0.0-beta.5"
 mlua = { version = "0.6.6", default-features = false, features = ["macros", "lua54", "serialize", "vendored"] }
 thiserror = "1.0.30"

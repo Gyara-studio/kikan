@@ -9,12 +9,12 @@ pub trait UnitHandler: Sized {
     // store id to handler
     fn init(&mut self) -> KResult<()>;
     fn get_position(&self) -> KResult<Position>;
-    fn plan_move(&mut self, next_move: Move) -> KResult<()>;
-    fn is_move_queue_empty(&self) -> KResult<bool>;
-    fn clear_move_queue(&self) -> KResult<()>;
+    fn plan_move(&self, next_move: Move) -> KResult<()>;
+    fn is_moving(&self) -> KResult<bool>;
     fn package(self) -> Handler<Self> {
         Handler(self)
     }
+    fn wait_for_update(&self);
 }
 
 pub struct LocalHandle {
@@ -53,7 +53,7 @@ impl UnitHandler for LocalHandle {
             .ok_or(KikanError::GhostUnit)
     }
 
-    fn plan_move(&mut self, next_move: Move) -> KResult<()> {
+    fn plan_move(&self, next_move: Move) -> KResult<()> {
         let id = if let Some(id) = self.unit_id {
             id
         } else {
@@ -62,22 +62,18 @@ impl UnitHandler for LocalHandle {
         self.kikan.lock().unwrap().plan_unit_move(id, next_move)
     }
 
-    fn is_move_queue_empty(&self) -> KResult<bool> {
+    fn is_moving(&self) -> KResult<bool> {
         let id = if let Some(id) = self.unit_id {
             id
         } else {
             return Err(KikanError::Uninited);
         };
-        self.kikan.lock().unwrap().is_unit_move_queue_empty(id)
+        self.kikan.lock().unwrap().is_unit_moving(id)
     }
 
-    fn clear_move_queue(&self) -> KResult<()> {
-        let id = if let Some(id) = self.unit_id {
-            id
-        } else {
-            return Err(KikanError::Uninited);
-        };
-        self.kikan.lock().unwrap().clear_unit_move_queue(id)
+    fn wait_for_update(&self) {
+        let mut reader = { self.kikan.lock().unwrap().wait_for_update() };
+        reader.recv().ok();
     }
 }
 
@@ -103,10 +99,13 @@ where
 
         methods.add_method("get_position", |_, this, _: ()| Ok(this.0.get_position()?));
 
-        methods.add_method("is_any_planned_move", |_, this, (): ()| {
-            Ok(this.0.is_move_queue_empty().map(|re| !re)?)
+        methods.add_method("is_moving", |_, this, (): ()| {
+            Ok(this.0.is_moving().map(|re| !re)?)
         });
 
-        methods.add_method("clear_planned_move", |_, this, (): ()| Ok(this.0.clear_move_queue()?));
+        methods.add_method("wait_for_update", |_, this, (): ()| {
+            this.0.wait_for_update();
+            Ok(())
+        });
     }
 }

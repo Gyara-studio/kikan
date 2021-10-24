@@ -1,33 +1,11 @@
-use mlua::UserData;
-
+pub use crate::arsenal::coremods::engine::Move;
 use crate::error::{KResult, KikanError};
+use bus::{Bus, BusReader};
+use mlua::UserData;
 use std::{
     collections::{HashMap, HashSet},
-    str::FromStr,
     sync::{Arc, Mutex},
 };
-
-#[derive(Debug, Clone, Copy)]
-pub enum Move {
-    N, // ↑
-    S, // ↓
-    W, // ←
-    E, // →
-}
-
-impl FromStr for Move {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "N" | "n" => Self::N,
-            "S" | "s" => Self::S,
-            "W" | "w" => Self::W,
-            "E" | "e" => Self::E,
-            _ => return Err(()),
-        })
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position(pub i32, pub i32);
@@ -85,18 +63,20 @@ pub struct PosConfig {
 pub struct Kikan {
     count: UnitId,
     units: HashMap<UnitId, Unit>,
-    start_pos: Box<dyn FnMut() -> Position>,
+    start_pos: Box<dyn Fn() -> Position + Send>,
+    update_bus: Bus<()>,
 }
 
 impl Kikan {
     pub fn kikan_in_a_shell<F>(start_pos: F) -> Arc<Mutex<Self>>
     where
-        F: FnMut() -> Position + 'static,
+        F: Fn() -> Position + 'static + Send,
     {
         let kikan = Kikan {
             count: 0,
             units: HashMap::new(),
             start_pos: Box::new(start_pos),
+            update_bus: Bus::new(42), // every thing
         };
         Arc::new(Mutex::new(kikan))
     }
@@ -149,7 +129,7 @@ impl Kikan {
         (self.start_pos)()
     }
 
-    pub fn is_unit_move_queue_empty(&self, unit_id: UnitId) -> KResult<bool> {
+    pub fn is_unit_moving(&self, unit_id: UnitId) -> KResult<bool> {
         Ok(self
             .units
             .get(&unit_id)
@@ -158,9 +138,12 @@ impl Kikan {
             .is_empty())
     }
 
-    pub fn clear_unit_move_queue(&mut self, unit_id: UnitId) -> KResult<()> {
-        let unit = self.units.get_mut(&unit_id).ok_or(KikanError::GhostUnit)?;
-        unit.move_queue.clear();
+    pub fn wait_for_update(&mut self) -> BusReader<()> {
+        self.update_bus.add_rx()
+    }
+
+    pub fn update(&mut self) -> KResult<()> {
+        self.update_bus.broadcast(());
         Ok(())
     }
 }
@@ -174,6 +157,7 @@ mod tests {
             count: 0,
             units: HashMap::new(),
             start_pos: Box::new(|| Position(0, 0)),
+            update_bus: Bus::new(42),
         }
     }
 
@@ -248,5 +232,13 @@ mod tests {
 
         assert_eq!(pos_u0, Position(1, 0));
         assert_eq!(pos_u1, Position(0, 1));
+    }
+
+    #[test]
+    fn bus_buffer() {
+        let mut kikan = test_kikan();
+        for _ in 0..45 {
+            kikan.update().unwrap();
+        }
     }
 }

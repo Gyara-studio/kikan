@@ -13,6 +13,10 @@ pub enum KikanError {
     GhostUnit,
     #[error("There is already a unit")]
     AlreadyUnitHere,
+    #[error("This mod is busy")]
+    ModBusy,
+    #[error("This mod is offline")]
+    ModOffline,
 }
 
 impl From<KikanError> for LuaError {
