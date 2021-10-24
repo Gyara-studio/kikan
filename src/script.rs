@@ -91,14 +91,15 @@ mod tests {
             api:plan_move('E');
             api:wait_for_update();
             api:plan_move('E');
+            api:wait_for_update();
         ";
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
         let _unit = {
             let kikan = Arc::clone(&kikan);
             std::thread::spawn(move || loop {
-                kikan.lock().unwrap().update().unwrap();
                 kikan.lock().unwrap().apply_move();
+                kikan.lock().unwrap().update().unwrap();
             })
         };
         load_lua_script(handler, script).unwrap();
