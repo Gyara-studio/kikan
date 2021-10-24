@@ -49,8 +49,8 @@ impl UnitStatus {
         if let UnitStatus::Offline = self {
             Err(KikanError::ModOffline)
         } else {
-        Ok(())
-            }
+            Ok(())
+        }
     }
 }
 

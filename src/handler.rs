@@ -99,9 +99,7 @@ where
 
         methods.add_method("get_position", |_, this, _: ()| Ok(this.0.get_position()?));
 
-        methods.add_method("is_moving", |_, this, (): ()| {
-            Ok(this.0.is_moving().map(|re| !re)?)
-        });
+        methods.add_method("is_moving", |_, this, (): ()| Ok(this.0.is_moving().map(|re| !re)?));
 
         methods.add_method("wait_for_update", |_, this, (): ()| {
             this.0.wait_for_update();
