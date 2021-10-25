@@ -84,21 +84,19 @@ mod tests {
     fn unit_move() {
         let script = "
             api:init();
-            api:plan_move('N');
-            api:wait_for_update();
-            api:plan_move('N');
-            api:wait_for_update();
-            api:plan_move('E');
-            api:wait_for_update();
-            api:plan_move('E');
-            api:wait_for_update();
+            local moves = {'N', 'N', 'E', 'E'}
+            for _, xx in ipairs(moves) do
+                while (api:is_moving()) do
+                    api:wait_for_update()
+                end
+                api:plan_move(xx)
+            end
         ";
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
         let _unit = {
             let kikan = Arc::clone(&kikan);
             std::thread::spawn(move || loop {
-                kikan.lock().unwrap().apply_move();
                 kikan.lock().unwrap().update().unwrap();
             })
         };
@@ -115,48 +113,5 @@ mod tests {
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
         assert!(load_lua_script(handler, script).is_err());
-    }
-
-    #[test]
-    fn position() {
-        let script = "
-            api:init();
-            local pos = api:get_position();
-            local x = pos.x;
-            while x > 0 do
-                api:plan_move('S');
-                x = x - 1;
-            end
-        ";
-        let kikan = Kikan::kikan_in_a_shell(|| Position(1, 0));
-        let handler = LocalHandle::new(Arc::clone(&kikan));
-        load_lua_script(handler, script).unwrap();
-        for _ in 0..2 {
-            kikan.lock().unwrap().apply_move();
-        }
-        assert_eq!(kikan.lock().unwrap().get_unit_position(0), Some(Position(0, 0)));
-    }
-
-    #[test]
-    fn wait_for_update() {
-        let script = "
-            api:init();
-            api:plan_move('s');
-            api:wait_for_update();
-            api:plan_move('s');
-        ";
-        let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
-        let handler = LocalHandle::new(Arc::clone(&kikan));
-        let _unit = {
-            let kikan = Arc::clone(&kikan);
-            std::thread::spawn(move || loop {
-                kikan.lock().unwrap().update().unwrap();
-            })
-        };
-        load_lua_script(handler, script).unwrap();
-        for _ in 0..2 {
-            kikan.lock().unwrap().apply_move();
-        }
-        assert_eq!(kikan.lock().unwrap().get_unit_position(0), Some(Position(-2, 0)));
     }
 }

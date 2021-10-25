@@ -1,9 +1,12 @@
-pub use crate::arsenal::coremods::engine::Move;
-use crate::error::{KResult, KikanError};
+pub use crate::arsenal::engine::Move;
+use crate::{
+    arsenal::{engine::STE0, Commit, UnitMod},
+    error::{KResult, KikanError},
+};
 use bus::{Bus, BusReader};
 use mlua::UserData;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -21,10 +24,9 @@ impl UserData for Position {
 /// ↑
 /// x
 /// 0 y →
-#[derive(Debug, Clone)]
-pub(crate) struct Unit {
+pub struct Unit {
     pub(crate) pos: Position,
-    pub(crate) move_queue: Vec<Move>,
+    pub(crate) engine: Box<dyn UnitMod<Move> + Send>,
 }
 
 pub type UnitId = u32;
@@ -33,22 +35,13 @@ impl Unit {
     pub fn new(pos: Position) -> Self {
         Self {
             pos,
-            move_queue: Vec::new(),
+            engine: Box::new(STE0::default()),
         }
     }
 
-    fn plan_move(&mut self) -> Position {
-        if !self.move_queue.is_empty() {
-            let next_move = self.move_queue.remove(0);
-            let Position(x, y) = self.pos;
-            return match next_move {
-                Move::N => Position(x + 1, y),
-                Move::S => Position(x - 1, y),
-                Move::W => Position(x, y - 1),
-                Move::E => Position(x, y + 1),
-            };
-        }
-        self.pos
+    fn plan_move(&mut self, next_move: Move) -> KResult<Box<dyn Commit>> {
+        self.engine.status()?.operational_or_err()?;
+        self.engine.action(next_move)
     }
 
     fn apply_move(&mut self, new_pos: Position) {
@@ -63,6 +56,8 @@ pub struct PosConfig {
 pub struct Kikan {
     count: UnitId,
     units: HashMap<UnitId, Unit>,
+    commits: VecDeque<Vec<Box<dyn Commit>>>,
+    move_commits: HashMap<UnitId, Position>,
     start_pos: Box<dyn Fn() -> Position + Send>,
     update_bus: Bus<()>,
 }
@@ -75,6 +70,8 @@ impl Kikan {
         let kikan = Kikan {
             count: 0,
             units: HashMap::new(),
+            commits: VecDeque::with_capacity(1024),
+            move_commits: HashMap::default(),
             start_pos: Box::new(start_pos),
             update_bus: Bus::new(42), // every thing
         };
@@ -94,7 +91,9 @@ impl Kikan {
 
     pub fn plan_unit_move(&mut self, unit_id: UnitId, next_move: Move) -> KResult<()> {
         let unit = self.units.get_mut(&unit_id).ok_or(KikanError::GhostUnit)?;
-        unit.move_queue.push(next_move);
+        let mut commit = unit.plan_move(next_move)?;
+        commit.fill_unit_id(unit_id);
+        self.add_commit(commit);
         Ok(())
     }
 
@@ -103,14 +102,15 @@ impl Kikan {
         Some(unit.pos)
     }
 
-    pub fn apply_move(&mut self) {
+    fn apply_move(&mut self) {
         // pos to id
         let mut new_pos: HashMap<Position, UnitId> = HashMap::new();
         // which unit can be updated
         let mut new_pos_avaliable: HashSet<UnitId> = HashSet::new();
 
-        for (id, unit) in self.units.iter_mut() {
-            let next_pos = unit.plan_move();
+        for id in self.units.keys() {
+            let now_pos = self.get_unit_position(*id).unwrap();
+            let next_pos = self.move_commits.remove(id).unwrap_or(now_pos);
             if let Some(another_unit) = new_pos.get(&next_pos) {
                 new_pos_avaliable.remove(another_unit);
             } else {
@@ -129,13 +129,9 @@ impl Kikan {
         (self.start_pos)()
     }
 
-    pub fn is_unit_moving(&self, unit_id: UnitId) -> KResult<bool> {
-        Ok(self
-            .units
-            .get(&unit_id)
-            .ok_or(KikanError::GhostUnit)?
-            .move_queue
-            .is_empty())
+    pub fn is_unit_moving(&self, id: UnitId) -> KResult<bool> {
+        let unit = self.units.get(&id).ok_or(KikanError::GhostUnit)?;
+        unit.engine.status().map(|st| st.is_busy())
     }
 
     pub fn wait_for_update(&mut self) -> BusReader<()> {
@@ -143,8 +139,38 @@ impl Kikan {
     }
 
     pub fn update(&mut self) -> KResult<()> {
+        let mut res = Vec::new();
+        if let Some(commits) = self.commits.pop_front() {
+            for commit in commits {
+                res.push(commit.take_commit(self));
+            }
+        };
+        self.apply_move();
         self.update_bus.broadcast(());
-        Ok(())
+        res.into_iter().collect()
+    }
+
+    pub fn get_unit_by_id(&mut self, id: UnitId) -> KResult<&mut Unit> {
+        self.units.get_mut(&id).ok_or(KikanError::GhostUnit)
+    }
+
+    pub fn commit_move(&mut self, id: UnitId, pos: Position) {
+        self.move_commits.insert(id, pos);
+    }
+
+    pub fn add_commit(&mut self, commit: Box<dyn Commit>) {
+        let at: usize = commit.resolve_at().get();
+        let seat = if let Some(seat) = self.commits.get_mut(at) {
+            seat
+        } else {
+            if self.commits.len() <= at {
+                self.commits.resize_with(at + 1, Default::default)
+            }
+            let seat = Vec::new();
+            self.commits.insert(at, seat);
+            self.commits.get_mut(at).unwrap()
+        };
+        seat.push(commit);
     }
 }
 
@@ -155,7 +181,9 @@ mod tests {
     fn test_kikan() -> Kikan {
         Kikan {
             count: 0,
-            units: HashMap::new(),
+            units: HashMap::default(),
+            commits: VecDeque::default(),
+            move_commits: HashMap::default(),
             start_pos: Box::new(|| Position(0, 0)),
             update_bus: Bus::new(42),
         }
@@ -168,25 +196,33 @@ mod tests {
 
         let m0 = Move::N;
         kikan.plan_unit_move(u0, m0).unwrap();
-        kikan.apply_move();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos0 = kikan.get_unit_position(u0).unwrap();
         assert_eq!(pos0, Position(1, 0));
 
         let m1 = Move::E;
         kikan.plan_unit_move(u0, m1).unwrap();
-        kikan.apply_move();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos1 = kikan.get_unit_position(u0).unwrap();
         assert_eq!(pos1, Position(1, 1));
 
         let m2 = Move::S;
         kikan.plan_unit_move(u0, m2).unwrap();
-        kikan.apply_move();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos2 = kikan.get_unit_position(u0).unwrap();
         assert_eq!(pos2, Position(0, 1));
 
         let m3 = Move::W;
         kikan.plan_unit_move(u0, m3).unwrap();
-        kikan.apply_move();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos3 = kikan.get_unit_position(u0).unwrap();
         assert_eq!(pos3, Position(0, 0));
     }
@@ -200,16 +236,20 @@ mod tests {
         let m0_0 = Move::E;
         let m0_1 = Move::S;
         kikan.plan_unit_move(u0, m0_0).unwrap();
-        kikan.plan_unit_move(u0, m0_1).unwrap();
 
-        kikan.apply_move();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos_u0 = kikan.get_unit_position(u0).unwrap();
         let pos_u1 = kikan.get_unit_position(u1).unwrap();
 
         assert_eq!(pos_u0, Position(0, 0));
         assert_eq!(pos_u1, Position(0, 1));
 
-        kikan.apply_move();
+        kikan.plan_unit_move(u0, m0_1).unwrap();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos_u0 = kikan.get_unit_position(u0).unwrap();
         assert_eq!(pos_u0, Position(-1, 0));
     }
@@ -226,7 +266,9 @@ mod tests {
         let m1_0 = Move::W;
         kikan.plan_unit_move(u1, m1_0).unwrap();
 
-        kikan.apply_move();
+        for _ in 0..20 {
+            kikan.update().unwrap();
+        }
         let pos_u0 = kikan.get_unit_position(u0).unwrap();
         let pos_u1 = kikan.get_unit_position(u1).unwrap();
 
