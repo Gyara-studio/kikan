@@ -86,10 +86,10 @@ mod tests {
             api:init();
             local moves = {'N', 'N', 'E', 'E'}
             for _, xx in ipairs(moves) do
+                api:plan_move(xx)
                 while (api:is_moving()) do
                     api:wait_for_update()
                 end
-                api:plan_move(xx)
             end
         ";
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
