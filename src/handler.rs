@@ -1,6 +1,7 @@
 use crate::{
+    arsenal::engine::STE0,
     error::{KResult, KikanError},
-    kikan::{Kikan, Move, Position, UnitId},
+    kikan::{Kikan, Move, Position, Unit, UnitId},
 };
 use mlua::{Error as LuaError, UserData};
 use std::sync::{Arc, Mutex};
@@ -35,7 +36,9 @@ impl UnitHandler for LocalHandle {
         }
         let mut kikan = self.kikan.lock().unwrap();
         let pos = kikan.gen_start_pos();
-        let id = kikan.add_unit(pos)?;
+        let mut unit = Unit::builder();
+        unit.set_engine(Box::new(STE0::default()));
+        let id = kikan.add_unit(pos, unit)?;
         self.unit_id = Some(id);
         Ok(())
     }
@@ -99,9 +102,9 @@ where
 
         methods.add_method("get_position", |_, this, _: ()| Ok(this.0.get_position()?));
 
-        methods.add_method("is_moving", |_, this, (): ()| Ok(this.0.is_moving()?));
+        methods.add_method("is_moving", |_, this, _: ()| Ok(this.0.is_moving()?));
 
-        methods.add_method("wait_for_update", |_, this, (): ()| {
+        methods.add_method("wait_for_update", |_, this, _: ()| {
             this.0.wait_for_update();
             Ok(())
         });

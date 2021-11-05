@@ -17,6 +17,8 @@ pub enum KikanError {
     ModBusy,
     #[error("This mod is offline")]
     ModOffline,
+    #[error("Missing unit part `{0}`")]
+    MissingUnitPart(&'static str),
 }
 
 impl From<KikanError> for LuaError {

@@ -1,6 +1,6 @@
 pub use crate::arsenal::engine::Move;
 use crate::{
-    arsenal::{engine::STE0, Commit, UnitMod},
+    arsenal::{Commit, UnitMod},
     error::{KResult, KikanError},
 };
 use bus::{Bus, BusReader};
@@ -20,6 +20,34 @@ impl UserData for Position {
     }
 }
 
+pub struct UnitOrigin {
+    pub(crate) engine: Option<Box<dyn UnitMod<Move> + Send>>,
+}
+
+impl UnitOrigin {
+    pub fn new() -> Self {
+        Self { engine: None }
+    }
+
+    pub fn set_engine(&mut self, engine: Box<dyn UnitMod<Move> + Send>) -> &mut Self {
+        self.engine = Some(engine);
+        self
+    }
+
+    pub(crate) fn build(self, pos: Position) -> KResult<Unit> {
+        Ok(Unit {
+            pos,
+            engine: self.engine.ok_or(KikanError::MissingUnitPart("Engine"))?,
+        })
+    }
+}
+
+impl Default for UnitOrigin {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// pos:
 /// ↑
 /// x
@@ -32,11 +60,8 @@ pub struct Unit {
 pub type UnitId = u32;
 
 impl Unit {
-    pub fn new(pos: Position) -> Self {
-        Self {
-            pos,
-            engine: Box::new(STE0::default()),
-        }
+    pub fn builder() -> UnitOrigin {
+        UnitOrigin::new()
     }
 
     fn plan_move(&mut self, next_move: Move) -> KResult<Box<dyn Commit>> {
@@ -78,13 +103,13 @@ impl Kikan {
         Arc::new(Mutex::new(kikan))
     }
 
-    pub fn add_unit(&mut self, pos: Position) -> KResult<UnitId> {
+    pub fn add_unit(&mut self, pos: Position, unit: UnitOrigin) -> KResult<UnitId> {
         if self.units.iter().any(|(_, v)| v.pos == pos) {
             return Err(KikanError::AlreadyUnitHere);
         }
         let id = self.count;
         self.count += 1;
-        let unit = Unit::new(pos);
+        let unit = unit.build(pos)?;
         self.units.insert(id, unit);
         Ok(id)
     }
@@ -177,6 +202,7 @@ impl Kikan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arsenal::engine::STE0;
 
     fn test_kikan() -> Kikan {
         Kikan {
@@ -192,7 +218,9 @@ mod tests {
     #[test]
     fn unit_move() {
         let mut kikan = test_kikan();
-        let u0 = kikan.add_unit(Position(0, 0)).unwrap();
+        let mut unit = Unit::builder();
+        unit.set_engine(Box::new(STE0::default()));
+        let u0 = kikan.add_unit(Position(0, 0), unit).unwrap();
 
         let m0 = Move::N;
         kikan.plan_unit_move(u0, m0).unwrap();
@@ -230,8 +258,12 @@ mod tests {
     #[test]
     fn unit_crash() {
         let mut kikan = test_kikan();
-        let u0 = kikan.add_unit(Position(0, 0)).unwrap();
-        let u1 = kikan.add_unit(Position(0, 1)).unwrap();
+        let mut unit0 = Unit::builder();
+        unit0.set_engine(Box::new(STE0::default()));
+        let mut unit1 = Unit::builder();
+        unit1.set_engine(Box::new(STE0::default()));
+        let u0 = kikan.add_unit(Position(0, 0), unit0).unwrap();
+        let u1 = kikan.add_unit(Position(0, 1), unit1).unwrap();
 
         let m0_0 = Move::E;
         let m0_1 = Move::S;
@@ -257,8 +289,12 @@ mod tests {
     #[test]
     fn unit_crash_2() {
         let mut kikan = test_kikan();
-        let u0 = kikan.add_unit(Position(1, 0)).unwrap();
-        let u1 = kikan.add_unit(Position(0, 1)).unwrap();
+        let mut unit0 = Unit::builder();
+        unit0.set_engine(Box::new(STE0::default()));
+        let mut unit1 = Unit::builder();
+        unit1.set_engine(Box::new(STE0::default()));
+        let u0 = kikan.add_unit(Position(1, 0), unit0).unwrap();
+        let u1 = kikan.add_unit(Position(0, 1), unit1).unwrap();
 
         let m0_0 = Move::S;
         kikan.plan_unit_move(u0, m0_0).unwrap();
