@@ -1,6 +1,6 @@
 use crate::{
     error::{KResult, KikanError},
-    kikan::{Kikan, UnitId},
+    kikan::{Kikan, Position, UnitId},
 };
 use std::{collections::HashMap, num::NonZeroUsize};
 
@@ -68,7 +68,7 @@ impl UnitStatus {
     }
 }
 
-pub trait UnitMod<A: UnitAction>: UnitPart {
+pub trait UnitMod<A: UnitAction>: UnitPart + Send {
     fn status(&self) -> KResult<UnitStatus>;
 
     fn action(&mut self, action: A) -> KResult<Box<dyn Commit>>;
@@ -98,4 +98,28 @@ impl Commit for () {
     }
 
     fn fill_unit_id(&mut self, _: UnitId) {}
+}
+
+pub struct KineticWeaponAction {
+    pub(crate) delay: Box<dyn Fn(usize) -> usize + Sync + Send>,
+    pub distance: usize,
+    pub target: Position,
+    pub damage: u32,
+}
+
+impl Commit for KineticWeaponAction {
+    fn resolve_at(&self) -> NonZeroUsize {
+        NonZeroUsize::new((self.delay)(self.distance)).unwrap_or_else(|| unsafe { NonZeroUsize::new_unchecked(1) })
+    }
+
+    fn take_commit(&self, _kikan: &mut Kikan) -> KResult<()> {
+        Ok(())
+    }
+
+    /// this mod will use no unit id.
+    fn fill_unit_id(&mut self, _: UnitId) {}
+}
+
+pub enum UnitModContainter {
+    KineticWeapon(Box<dyn UnitMod<KineticWeaponAction>>),
 }

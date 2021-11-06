@@ -1,6 +1,6 @@
 pub use crate::arsenal::engine::Move;
 use crate::{
-    arsenal::{Commit, UnitMod},
+    arsenal::{Commit, UnitMod, UnitModContainter},
     error::{KResult, KikanError},
 };
 use bus::{Bus, BusReader};
@@ -22,11 +22,15 @@ impl UserData for Position {
 
 pub struct UnitOrigin {
     pub(crate) engine: Option<Box<dyn UnitMod<Move> + Send>>,
+    pub(crate) mods: HashMap<String, UnitModContainter>,
 }
 
 impl UnitOrigin {
     pub fn new() -> Self {
-        Self { engine: None }
+        Self {
+            engine: None,
+            mods: HashMap::new(),
+        }
     }
 
     pub fn set_engine(&mut self, engine: Box<dyn UnitMod<Move> + Send>) -> &mut Self {
@@ -34,10 +38,16 @@ impl UnitOrigin {
         self
     }
 
+    pub fn add_mods(&mut self, unit_mod: UnitModContainter, mod_id: String) -> &mut Self {
+        self.mods.insert(mod_id, unit_mod);
+        self
+    }
+
     pub(crate) fn build(self, pos: Position) -> KResult<Unit> {
         Ok(Unit {
             pos,
             engine: self.engine.ok_or(KikanError::MissingUnitPart("Engine"))?,
+            mods: self.mods,
         })
     }
 }
@@ -55,6 +65,7 @@ impl Default for UnitOrigin {
 pub struct Unit {
     pub(crate) pos: Position,
     pub(crate) engine: Box<dyn UnitMod<Move> + Send>,
+    pub(crate) mods: HashMap<String, UnitModContainter>,
 }
 
 pub type UnitId = u32;
