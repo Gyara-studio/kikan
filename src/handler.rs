@@ -1,5 +1,5 @@
 use crate::{
-    arsenal::engine::STE0,
+    arsenal::{engine::STE0, UnitActionContainer},
     error::{KResult, KikanError},
     kikan::{Kikan, Move, Position, Unit, UnitId},
 };
@@ -16,6 +16,7 @@ pub trait UnitHandler: Sized {
         Handler(self)
     }
     fn wait_for_update(&self);
+    fn mod_action(&self, mod_id: String, action: UnitActionContainer) -> KResult<()>;
 }
 
 pub struct LocalHandle {
@@ -78,6 +79,15 @@ impl UnitHandler for LocalHandle {
         let mut reader = { self.kikan.lock().unwrap().wait_for_update() };
         reader.recv().ok();
     }
+
+    fn mod_action(&self, mod_id: String, action: UnitActionContainer) -> KResult<()> {
+        let id = if let Some(id) = self.unit_id {
+            id
+        } else {
+            return Err(KikanError::Uninited);
+        };
+        self.kikan.lock().unwrap().unit_mod_action(id, mod_id, action)
+    }
 }
 
 pub struct Handler<T>(pub T);
@@ -106,6 +116,11 @@ where
 
         methods.add_method("wait_for_update", |_, this, _: ()| {
             this.0.wait_for_update();
+            Ok(())
+        });
+
+        methods.add_method("mod_on", |_, this, (mod_id, action): (String, UnitActionContainer)| {
+            this.0.mod_action(mod_id, action)?;
             Ok(())
         });
     }

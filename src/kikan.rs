@@ -1,6 +1,6 @@
 pub use crate::arsenal::engine::Move;
 use crate::{
-    arsenal::{Commit, UnitMod, UnitModContainter},
+    arsenal::{Commit, UnitActionContainer, UnitMod, UnitModContainter},
     error::{KResult, KikanError},
 };
 use bus::{Bus, BusReader};
@@ -82,6 +82,11 @@ impl Unit {
 
     fn apply_move(&mut self, new_pos: Position) {
         self.pos = new_pos;
+    }
+
+    fn take_action(&mut self, mod_id: String, action: UnitActionContainer) -> KResult<Box<dyn Commit>> {
+        let umod = self.mods.get_mut(&mod_id).ok_or(KikanError::MissingUnitMod(mod_id))?;
+        umod.take_action(action)
     }
 }
 
@@ -207,6 +212,13 @@ impl Kikan {
             self.commits.get_mut(at).unwrap()
         };
         seat.push(commit);
+    }
+
+    pub fn unit_mod_action(&mut self, unit_id: UnitId, mod_id: String, action: UnitActionContainer) -> KResult<()> {
+        let unit = self.units.get_mut(&unit_id).ok_or(KikanError::GhostUnit)?;
+        let commit = unit.take_action(mod_id, action)?;
+        self.add_commit(commit);
+        Ok(())
     }
 }
 

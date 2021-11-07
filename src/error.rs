@@ -19,6 +19,10 @@ pub enum KikanError {
     ModOffline,
     #[error("Missing unit part `{0}`")]
     MissingUnitPart(&'static str),
+    #[error("Unit mod not found `{0}`")]
+    MissingUnitMod(String),
+    #[error("Wrong Unit args `{0}`")]
+    WrongUnitArgs(String),
 }
 
 impl From<KikanError> for LuaError {

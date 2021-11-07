@@ -1,3 +1,5 @@
+use mlua::UserData;
+
 use crate::{
     error::{KResult, KikanError},
     kikan::{Kikan, Position, UnitId},
@@ -5,6 +7,7 @@ use crate::{
 use std::{collections::HashMap, num::NonZeroUsize};
 
 pub mod engine;
+pub mod kinetic_weapon;
 
 pub type UnitScore = u32;
 
@@ -100,26 +103,46 @@ impl Commit for () {
     fn fill_unit_id(&mut self, _: UnitId) {}
 }
 
-pub struct KineticWeaponAction {
-    pub(crate) delay: Box<dyn Fn(usize) -> usize + Sync + Send>,
-    pub distance: usize,
-    pub target: Position,
-    pub damage: u32,
-}
-
-impl Commit for KineticWeaponAction {
-    fn resolve_at(&self) -> NonZeroUsize {
-        NonZeroUsize::new((self.delay)(self.distance)).unwrap_or_else(|| unsafe { NonZeroUsize::new_unchecked(1) })
-    }
-
-    fn take_commit(&self, _kikan: &mut Kikan) -> KResult<()> {
-        Ok(())
-    }
-
-    /// this mod will use no unit id.
-    fn fill_unit_id(&mut self, _: UnitId) {}
-}
-
 pub enum UnitModContainter {
-    KineticWeapon(Box<dyn UnitMod<KineticWeaponAction>>),
+    KineticWeapon(Box<dyn UnitMod<Position>>),
 }
+
+impl UnitModContainter {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Self::KineticWeapon(_) => "KineticWeapon",
+        }
+    }
+
+    pub fn take_action(&mut self, action: UnitActionContainer) -> KResult<Box<dyn Commit>> {
+        match self {
+            Self::KineticWeapon(umod) => match action {
+                UnitActionContainer::Pos(action) => umod.action(action),
+                // _ => Err(KikanError::WrongUnitArgs(self.type_name().to_string())),
+            },
+        }
+    }
+}
+
+impl UnitPart for UnitModContainter {
+    fn score(&self) -> UnitScore {
+        match self {
+            Self::KineticWeapon(umod) => umod.score(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum UnitActionContainer {
+    Pos(Position),
+}
+
+impl UnitActionContainer {
+    pub fn from_position(pos: Position, umod: &UnitModContainter) -> KResult<Self> {
+        match umod {
+            UnitModContainter::KineticWeapon(_) => Ok(Self::Pos(pos)),
+        }
+    }
+}
+
+impl UserData for UnitActionContainer {}
