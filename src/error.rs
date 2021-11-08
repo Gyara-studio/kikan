@@ -23,6 +23,8 @@ pub enum KikanError {
     MissingUnitMod(String),
     #[error("Wrong Unit args `{0}`")]
     WrongUnitArgs(String),
+    #[error("No such mod exists")]
+    NoSuchMod,
 }
 
 impl From<KikanError> for LuaError {

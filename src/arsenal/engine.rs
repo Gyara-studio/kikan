@@ -1,3 +1,5 @@
+use mlua::UserData;
+
 use crate::{
     arsenal::{Commit, UnitAction, UnitMod, UnitPart, UnitScore, UnitStatus},
     error::{KResult, KikanError},
@@ -72,18 +74,18 @@ impl Commit for MoveCommit {
 
 /// engine
 #[derive(Debug, Default, Clone, Copy)]
-pub struct STE0 {
+pub struct STE {
     now_on: Option<Move>,
     offline: bool,
 }
 
-impl UnitPart for STE0 {
+impl UnitPart for STE {
     fn score(&self) -> UnitScore {
         0
     }
 }
 
-impl UnitMod<Move> for STE0 {
+impl UnitMod<Move> for STE {
     fn status(&self) -> KResult<UnitStatus> {
         if self.offline {
             Ok(UnitStatus::Offline)
@@ -112,5 +114,31 @@ impl UnitMod<Move> for STE0 {
         self.now_on = None;
         self.offline = true;
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EngineType {
+    STE,
+}
+
+impl EngineType {
+    pub fn into_engine(self) -> Box<dyn UnitMod<Move> + Send> {
+        match self {
+            Self::STE => Box::new(STE::default()),
+        }
+    }
+}
+
+impl UserData for EngineType {}
+
+impl FromStr for EngineType {
+    type Err = KikanError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "STE" | "ste" => Self::STE,
+            _ => return Err(KikanError::NoSuchMod),
+        })
     }
 }

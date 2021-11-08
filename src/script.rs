@@ -2,7 +2,7 @@ use crate::{error::KikanError, handler::UnitHandler};
 use mlua::Lua;
 
 mod utils {
-    use crate::kikan::Position;
+    use crate::{arsenal::engine::EngineType, kikan::Position};
     use mlua::UserData;
 
     pub struct Utils {}
@@ -10,7 +10,8 @@ mod utils {
         fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(_fields: &mut F) {}
 
         fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
-            methods.add_method("new_position", |_, _, (x, y): (i32, i32)| Ok(Position(x, y)))
+            methods.add_method("new_position", |_, _, (x, y): (i32, i32)| Ok(Position(x, y)));
+            methods.add_method("new_engine", |_, _, engine: String| Ok(engine.parse::<EngineType>()?));
         }
     }
 }
@@ -50,9 +51,14 @@ mod tests {
 
     #[test]
     fn hello_world() {
+        let scipt = r#"
+            local engine = utils:new_engine("ste")
+            api:set_engine(engine)
+            api:init()
+        "#;
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
-        load_lua_script(handler, "api:init()").unwrap();
+        load_lua_script(handler, scipt).unwrap();
         assert!(kikan.lock().unwrap().get_unit_position(0).is_some());
     }
 
@@ -82,7 +88,9 @@ mod tests {
 
     #[test]
     fn unit_move() {
-        let script = "
+        let script = r#"
+            local engine = utils:new_engine("ste")
+            api:set_engine(engine)
             api:init();
             local moves = {'N', 'N', 'E', 'E'}
             for _, xx in ipairs(moves) do
@@ -91,7 +99,7 @@ mod tests {
                     api:wait_for_update()
                 end
             end
-        ";
+        "#;
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
         let _unit = {
@@ -106,10 +114,12 @@ mod tests {
 
     #[test]
     fn double_init() {
-        let script = "
+        let script = r#"
+            local engine = utils:new_engine("ste")
+            api:set_engine(engine)
             api:init();
             api:init();
-        ";
+        "#;
         let kikan = Kikan::kikan_in_a_shell(|| Position(0, 0));
         let handler = LocalHandle::new(Arc::clone(&kikan));
         assert!(load_lua_script(handler, script).is_err());

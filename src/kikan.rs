@@ -1,6 +1,6 @@
 pub use crate::arsenal::engine::Move;
 use crate::{
-    arsenal::{Commit, UnitActionContainer, UnitMod, UnitModContainter},
+    arsenal::{engine::EngineType, Commit, UnitActionContainer, UnitMod, UnitModContainter},
     error::{KResult, KikanError},
 };
 use bus::{Bus, BusReader};
@@ -33,8 +33,8 @@ impl UnitOrigin {
         }
     }
 
-    pub fn set_engine(&mut self, engine: Box<dyn UnitMod<Move> + Send>) -> &mut Self {
-        self.engine = Some(engine);
+    pub fn set_engine(&mut self, engine: EngineType) -> &mut Self {
+        self.engine = Some(engine.into_engine());
         self
     }
 
@@ -225,7 +225,6 @@ impl Kikan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arsenal::engine::STE0;
 
     fn test_kikan() -> Kikan {
         Kikan {
@@ -242,7 +241,7 @@ mod tests {
     fn unit_move() {
         let mut kikan = test_kikan();
         let mut unit = Unit::builder();
-        unit.set_engine(Box::new(STE0::default()));
+        unit.set_engine(EngineType::STE);
         let u0 = kikan.add_unit(Position(0, 0), unit).unwrap();
 
         let m0 = Move::N;
@@ -282,9 +281,9 @@ mod tests {
     fn unit_crash() {
         let mut kikan = test_kikan();
         let mut unit0 = Unit::builder();
-        unit0.set_engine(Box::new(STE0::default()));
+        unit0.set_engine(EngineType::STE);
         let mut unit1 = Unit::builder();
-        unit1.set_engine(Box::new(STE0::default()));
+        unit1.set_engine(EngineType::STE);
         let u0 = kikan.add_unit(Position(0, 0), unit0).unwrap();
         let u1 = kikan.add_unit(Position(0, 1), unit1).unwrap();
 
@@ -313,9 +312,9 @@ mod tests {
     fn unit_crash_2() {
         let mut kikan = test_kikan();
         let mut unit0 = Unit::builder();
-        unit0.set_engine(Box::new(STE0::default()));
+        unit0.set_engine(EngineType::STE);
         let mut unit1 = Unit::builder();
-        unit1.set_engine(Box::new(STE0::default()));
+        unit1.set_engine(EngineType::STE);
         let u0 = kikan.add_unit(Position(1, 0), unit0).unwrap();
         let u1 = kikan.add_unit(Position(0, 1), unit1).unwrap();
 
