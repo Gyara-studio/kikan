@@ -76,10 +76,7 @@ impl UnitHandler for LocalHandle {
     }
 
     fn ready(&mut self) -> KResult<()> {
-        if self.state.is_ready() {
-            return Err(KikanError::AlreadyInited);
-        };
-        if self.unit_id.is_some() {
+        if self.state.is_ready() || self.unit_id.is_some() {
             return Err(KikanError::AlreadyInited);
         }
         let mut state = LocalHandlerState::Ready;
@@ -174,6 +171,11 @@ where
 
         methods.add_method_mut("set_engine", |_, this, engine: EngineType| {
             this.0.set_engine(engine)?;
+            Ok(())
+        });
+
+        methods.add_method_mut("add_mod", |_, this, (mod_id, action): (String, UnitActionContainer)| {
+            this.0.mod_action(mod_id, action)?;
             Ok(())
         });
     }

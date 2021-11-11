@@ -116,10 +116,12 @@ impl UnitModContainter {
 
     pub fn take_action(&mut self, action: UnitActionContainer) -> KResult<Box<dyn Commit>> {
         match self {
-            Self::KineticWeapon(umod) => match action {
-                UnitActionContainer::Pos(action) => umod.action(action),
-                // _ => Err(KikanError::WrongUnitArgs(self.type_name().to_string())),
-            },
+            Self::KineticWeapon(umod) => {
+                umod.status()?.operational_or_err()?;
+                match action {
+                    UnitActionContainer::Pos(action) => umod.action(action),
+                }
+            }
         }
     }
 }
